@@ -18,17 +18,19 @@ class MessageHandler:
     def produceMsg(self, msg_type):
         val = 0
         if msg_type == Message.MsgType.PING:
-            val = self.last_value
+            val = abs(self.last_value) + 1
             if self.state == self.State.RECEIVED_PING:
                 self.state = self.State.RECEIVED_NONE
             elif self.state == self.State.RECEIVED_BOTH:
                 self.state = self.State.RECEIVED_PONG
+            print('Sent PING ', val)
         elif msg_type == Message.MsgType.PONG:
-            val = -self.last_value
+            val = -1 * abs(self.last_value) - 1
             if self.state == self.State.RECEIVED_PONG:
                 self.state = self.State.RECEIVED_NONE
             elif self.state == self.State.RECEIVED_BOTH:
                 self.state = self.State.RECEIVED_PING
+            print('Sent PONG ', val)
 
         self.network_adapter.send(val)
 
@@ -36,6 +38,7 @@ class MessageHandler:
         self.consumeMsg(msg)
 
         if self.state == self.State.RECEIVED_PING:
+            print('Entered critical section')
             time.sleep(1)
             if self.state != self.State.RECEIVED_PONG and self.state != self.State.RECEIVED_BOTH:
                 self.produceMsg(Message.MsgType.PING)
@@ -52,11 +55,13 @@ class MessageHandler:
             pass
         elif msg.value == self.last_value:  # token has been lost
             self.regenerate(msg.value)
+            self.produceMsg(Message.MsgType.PING)
             self.produceMsg(Message.MsgType.PONG)
         else:  # new token
             self.last_value = msg.value
 
             if msg.type == Message.MsgType.PONG:
+                print('Received PONG ', msg.value)
                 if self.state == self.State.RECEIVED_PING:
                     self.state = self.State.RECEIVED_BOTH
                 elif self.state == self.State.RECEIVED_NONE:
@@ -65,6 +70,7 @@ class MessageHandler:
                     print('error')
 
             if msg.type == Message.MsgType.PING:
+                print('Received PING ', msg.value)
                 if self.state == self.State.RECEIVED_PONG:
                     self.state = self.State.RECEIVED_BOTH
                 elif self.state == self.State.RECEIVED_NONE:
@@ -73,8 +79,11 @@ class MessageHandler:
                     print('error')
 
     def regenerate(self, val):
-        self.last_value = abs(val) + 1
+        self.incarnate(val)
         self.state = self.State.RECEIVED_NONE
 
     def incarnate(self, val):
-        self.last_value = abs(val) + 1
+        if val > 0:
+            self.last_value = val + 1
+        else:
+            self.last_value = val - 1

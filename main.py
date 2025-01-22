@@ -1,47 +1,45 @@
+import sys
+
 from Message import Message
 from NetworkAgent import NetworkAgent
 from MessageHandler import MessageHandler
 
 
-def setup_server(port):
-    na = NetworkAgent('0.0.0.0', port)
-    na.bind()
-    mh = MessageHandler(na)
-
-    with na.conn:
-        na.send(1)
-        while True:
-            data = na.receive()
-            if not data:
-                na.close()
-                break
-
-            mh.handleMsg(Message(int(data[0])))
-
-
-def setup_client(addr, port):
-    na = NetworkAgent(addr, port)
-    na.connect()
-    mh = MessageHandler(na)
-
-    with na.conn:
-        while True:
-            data = na.receive()
-            if data is not None:
-                mh.handleMsg(Message(int(data[0])))
-
-    na.close()
-
-
 def main():
-    addr = '127.0.0.1'
-    port = 8000
-    is_initiating = False
+    if len(sys.argv) < 5:
+        print('Incorrect number of arguments!')
+        print(f'Use case: {sys.argv[0]} hosting_port forwarding_port forwarding_addr is_initiating')
+        return
+
+    hosting_port = int(sys.argv[1])
+    forwarding_port = int(sys.argv[2])
+    forwarding_addr = sys.argv[3]
+    is_initiating = sys.argv[4] == 'true'
+
+    na = NetworkAgent(forwarding_addr, forwarding_port, hosting_port)
+
+    mh = MessageHandler(na)
 
     if is_initiating:
-        setup_server(port)
+        na.bind()
+        na.connect()
+        print('Initiating...')
+        na.send(1)
+        na.send(-1)
     else:
-        setup_client(addr, port)
+        na.connect()
+        na.bind()
+
+    while True:
+        data = na.receive()
+        if not data:
+            na.close()
+            break
+
+        for num in data.split():
+            mh.handleMsg(Message(int(num)))
+
+    na.close()
 
 
 if __name__ == '__main__':
